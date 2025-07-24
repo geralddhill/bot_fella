@@ -8,16 +8,11 @@ import asyncio
 from collections import deque
 from typing import Literal, Optional
 
-from keep_alive import keep_alive
-
 # Loads our token as an environment variable
 load_dotenv()
 TOKEN: str = os.getenv("DISCORD_TOKEN")
 
 SONG_QUEUES = {}
-
-keep_alive()
-
 
 
 # Handles concurrent execution
@@ -139,6 +134,8 @@ async def play(interaction: discord.Interaction, song_query: str):
     first_track = tracks[0]
     audio_url = first_track["url"]
     title = first_track.get("title", "Unititled")
+    username = interaction.user.nick if interaction.user.nick else interaction.user.display_name 
+    duration = first_track["duration"]
 
     # Gets the current server id
     guild_id = str(interaction.guild_id)
@@ -147,7 +144,7 @@ async def play(interaction: discord.Interaction, song_query: str):
         SONG_QUEUES[guild_id] = deque()
 
     # Adds song to queue
-    SONG_QUEUES[guild_id].append((audio_url, title))
+    SONG_QUEUES[guild_id].append((audio_url, title, username, duration))
 
     # Checks if a song is currently playing
     if voice_client.is_playing() or voice_client.is_paused():
@@ -231,10 +228,45 @@ async def stop(interaction: discord.Interaction):
 
 
 
+
+@bot.tree.command(name="queue", description="Displays the current queue")
+async def queue(interaction: discord.Interaction):
+    guild_id = str(interaction.guild_id)
+
+    if SONG_QUEUES.get(guild_id, None) is None or SONG_QUEUES[guild_id] == deque():
+        await interaction.response.send_message(embed=discord.Embed(title="The queue is currently empty.", color=discord.Color.red()))
+
+    voice_client = interaction.guild.voice_client
+    embed = discord.Embed(title="Music Queue", color=discord.Color.light_embed())
+    total_duration = 0
+
+    count = 0
+    for song in SONG_QUEUES[guild_id]:
+        if count == 0:
+            if voice_client.is_playing() or voice_client.is_paused():
+                embed.description = f"Now Playing: {song[1]}"
+                count += 1
+                break
+            count += 1
+            
+
+        embed.add_field(name=f"{count} - {song[1]}", value=f"requested by {song[2]}", inline=False)
+        total_duration += song[3]
+
+        count += 1
+
+    embed.set_footer(text=f"Estimated time remaining: {total_duration // 60}m {total_duration % 60}s")
+    
+    await interaction.response.send_message(embed=embed)
+
+
+
 async def play_next_song(voice_client, guild_id, channel):
     if SONG_QUEUES[guild_id]:
         # Gets next song for the current server's queue
-        audio_url, title = SONG_QUEUES[guild_id].popleft()
+        next_song = SONG_QUEUES[guild_id].popleft()
+        audio_url = next_song[0]
+        title = next_song[1]
 
         # Logic for playing the song
         ffmpeg_options = {
