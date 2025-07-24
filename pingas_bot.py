@@ -8,13 +8,15 @@ import asyncio
 from collections import deque
 from typing import Literal, Optional
 
+from keep_alive import keep_alive
+
 # Loads our token as an environment variable
 load_dotenv()
 TOKEN: str = os.getenv("DISCORD_TOKEN")
 
 SONG_QUEUES = {}
 
-GUILD_ID = 1397650988084756480
+keep_alive()
 
 
 
