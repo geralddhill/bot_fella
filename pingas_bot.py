@@ -124,7 +124,8 @@ async def play(interaction: discord.Interaction, song_query: str):
         "format": "bestaudio[abr<=96]/bestaudio",
         "noplaylist": True,
         "youtube_include_dash_manifest": False,
-        "youtube_include_hls_manifest": False
+        "youtube_include_hls_manifest": False,
+        "--cookies": "cookies.txt"
     }
 
     query = "ytsearch1: " + song_query
