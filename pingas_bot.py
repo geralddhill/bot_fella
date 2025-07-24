@@ -13,6 +13,7 @@ load_dotenv()
 TOKEN: str = os.getenv("DISCORD_TOKEN")
 
 SONG_QUEUES = {}
+NOW_PLAYING = {}
 
 
 # Handles concurrent execution
@@ -232,24 +233,20 @@ async def stop(interaction: discord.Interaction):
 @bot.tree.command(name="queue", description="Displays the current queue")
 async def queue(interaction: discord.Interaction):
     guild_id = str(interaction.guild_id)
-
-    if SONG_QUEUES.get(guild_id, None) is None or SONG_QUEUES[guild_id] == deque():
-        await interaction.response.send_message(embed=discord.Embed(title="The queue is currently empty.", color=discord.Color.red()))
-
     voice_client = interaction.guild.voice_client
+
+    if SONG_QUEUES.get(guild_id, deque()) == deque() and not voice_client or not voice_client.is_connected():
+        await interaction.response.send_message(embed=discord.Embed(title="The queue is currently empty.", color=discord.Color.red()))
+        return
+
     embed = discord.Embed(title="Music Queue", color=discord.Color.light_embed())
     total_duration = 0
 
-    count = 0
-    for song in SONG_QUEUES[guild_id]:
-        if count == 0:
-            if voice_client.is_playing() or voice_client.is_paused():
-                embed.description = f"Now Playing: {song[1]}"
-                count += 1
-                break
-            count += 1
-            
+    if voice_client.is_playing() or voice_client.is_paused():
+        embed.description = f"Now Playing: {NOW_PLAYING[guild_id][1]}"
 
+    count = 1
+    for song in SONG_QUEUES[guild_id]:
         embed.add_field(name=f"{count} - {song[1]}", value=f"requested by {song[2]}", inline=False)
         total_duration += song[3]
 
@@ -264,9 +261,9 @@ async def queue(interaction: discord.Interaction):
 async def play_next_song(voice_client, guild_id, channel):
     if SONG_QUEUES[guild_id]:
         # Gets next song for the current server's queue
-        next_song = SONG_QUEUES[guild_id].popleft()
-        audio_url = next_song[0]
-        title = next_song[1]
+        NOW_PLAYING[guild_id] = SONG_QUEUES[guild_id].popleft()
+        audio_url = NOW_PLAYING[guild_id][0]
+        title = NOW_PLAYING[guild_id][1]
 
         # Logic for playing the song
         ffmpeg_options = {
