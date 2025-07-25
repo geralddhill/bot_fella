@@ -100,10 +100,14 @@ async def play(interaction: discord.Interaction, song_query: str):
     # Lets discord know that the action will take a long time
     await interaction.response.defer()
 
-    voice_channel = interaction.user.voice.channel
+    voice_channel = None
+    try:
+        voice_channel = interaction.user.voice.channel
+    except:
+        pass
 
     if voice_channel is None:
-        await interaction.followup.send("You must be in a voice channel.")
+        await interaction.followup.send(embed=discord.Embed(title="You must be in a voice channel.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
         return
     
     # A voice client is an entity that can interact with voice channels in Discord
