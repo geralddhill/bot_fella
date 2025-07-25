@@ -7,6 +7,7 @@ import yt_dlp
 import asyncio
 from collections import deque
 from typing import Literal, Optional
+import datetime
 
 # Loads our token as an environment variable
 load_dotenv()
@@ -137,6 +138,8 @@ async def play(interaction: discord.Interaction, song_query: str):
     title = first_track.get("title", "Unititled")
     username = interaction.user.nick if interaction.user.nick else interaction.user.display_name 
     duration = first_track["duration"]
+    original_url = first_track["original_url"]
+    thumbnail = first_track["thumbnail"]
 
     # Gets the current server id
     guild_id = str(interaction.guild_id)
@@ -145,12 +148,15 @@ async def play(interaction: discord.Interaction, song_query: str):
         SONG_QUEUES[guild_id] = deque()
 
     # Adds song to queue
-    SONG_QUEUES[guild_id].append((audio_url, title, username, duration))
+    SONG_QUEUES[guild_id].append((audio_url, title, username, duration, original_url, thumbnail))
+
+    embed = discord.Embed(title="Track enqueued!", description=f"[{title}]({original_url})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+    embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
+    embed.set_thumbnail(url=thumbnail)
+    await interaction.followup.send(embed=embed)
 
     # Checks if a song is currently playing
-    if voice_client.is_playing() or voice_client.is_paused():
-        await interaction.followup.send(f"Added to queue: **{title}**")
-    else:
+    if not (voice_client.is_playing() or voice_client.is_paused()):
         await play_next_song(voice_client, guild_id, interaction.channel)
     
 
@@ -158,13 +164,18 @@ async def play(interaction: discord.Interaction, song_query: str):
 @bot.tree.command(name="skip", description="Skips the current playing song")
 async def skip(interaction: discord.Interaction):
     voice_client = interaction.guild.voice_client
+    guild_id = str(interaction.guild_id)
+    song = NOW_PLAYING[guild_id]
 
     # Checks to see if something playing and stops it if so, which triggers our function to play the next song
     if voice_client and (voice_client.is_playing() or voice_client.is_paused()):
         voice_client.stop()
-        await interaction.response.send_message("Skipped the current song.")
+        embed = embed=discord.Embed(title="Skipped the current song!", description=f"[{song[1]}]({song[4]})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+        embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
+        embed.set_thumbnail(url=song[5])
+        await interaction.response.send_message(embed=embed)
     else:
-        await interaction.response.send_message("Not playing anything to skip.")
+        await interaction.response.send_message(embed=discord.Embed(title="Not playing anything to skip.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
 
 
 
@@ -174,15 +185,17 @@ async def pause(interaction: discord.Interaction):
 
     # Checks if the bot is in a voice channel
     if voice_client is None:
-        return await interaction.response.send_message("I am not in a voice channel.")
+        return await interaction.response.send_message(embed=discord.Embed(title="I am not in a voice channel.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
     
     # Checks if something is actually playing
     if not voice_client.is_playing():
-        return await interaction.response.send_message("Nothing is currently playing.")
+        return await interaction.response.send_message(embed=discord.Embed(title="Nothing is currently playing.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
     
     # Pauses the track
     voice_client.pause()
-    await interaction.response.send_message("Playback paused!")
+    embed = discord.Embed(title="Playback paused!", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+    embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
+    await interaction.response.send_message(embed=embed)
 
 
 
@@ -192,15 +205,17 @@ async def resume(interaction: discord.Interaction):
 
     # Checks if the bot is in a voice channel
     if voice_client is None:
-        return await interaction.response.send_message("I am not in a voice channel.")
+        return await interaction.response.send_message(embed=discord.Embed(title="I am not in a voice channel.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
     
     # Checks if something is actually playing
     if not voice_client.is_paused():
-        return await interaction.response.send_message("I am not paused right now.")
+        return await interaction.response.send_message(embed=discord.Embed(title="I am not paused right now.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
     
-    # Pauses the track
+    # Resumes the track
     voice_client.resume()
-    await interaction.response.send_message("Playback resumed!")
+    embed = discord.Embed(title="Playback resumed!", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+    embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
+    await interaction.response.send_message(embed=embed)
 
 
 
@@ -211,7 +226,7 @@ async def stop(interaction: discord.Interaction):
     
     # Checks if the bot is in a voice channel
     if not voice_client or not voice_client.is_connected():
-        return await interaction.followup.send("I'm not connected to any voice channel.")
+        return await interaction.followup.send(embed=discord.Embed(title="I am not connected to any voice channel.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
     
     # Clear the server's queue
     guild_id_str = str(interaction.guild_id)
@@ -222,7 +237,9 @@ async def stop(interaction: discord.Interaction):
     if voice_client.is_playing() or voice_client.is_paused():
         voice_client.stop()
 
-    await interaction.followup.send("Stopped playback and disconnected!")
+    embed = discord.Embed(title="Stopped playback and disconnected!", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+    embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
+    await interaction.followup.send(embed=embed)
 
     # Disconnects from channel
     await voice_client.disconnect()
@@ -236,7 +253,7 @@ async def queue(interaction: discord.Interaction):
     voice_client = interaction.guild.voice_client
 
     if SONG_QUEUES.get(guild_id, deque()) == deque() and not voice_client or not voice_client.is_connected():
-        await interaction.response.send_message(embed=discord.Embed(title="The queue is currently empty.", color=discord.Color.red()))
+        await interaction.response.send_message(embed=discord.Embed(title="The queue is currently empty.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
         return
 
     embed = discord.Embed(title="Music Queue", color=discord.Color.light_embed())
@@ -264,6 +281,8 @@ async def play_next_song(voice_client, guild_id, channel):
         NOW_PLAYING[guild_id] = SONG_QUEUES[guild_id].popleft()
         audio_url = NOW_PLAYING[guild_id][0]
         title = NOW_PLAYING[guild_id][1]
+        original_url = NOW_PLAYING[guild_id][4]
+        thumbnail = NOW_PLAYING[guild_id][5]
 
         # Logic for playing the song
         ffmpeg_options = {
@@ -279,7 +298,10 @@ async def play_next_song(voice_client, guild_id, channel):
             asyncio.run_coroutine_threadsafe(play_next_song(voice_client, guild_id, channel), bot.loop)
 
         voice_client.play(source, after=after_play)
-        asyncio.create_task(channel.send(f"Now playing: **{title}**"))
+
+        embed = embed=discord.Embed(title="Now playing!", description=f"[{title}]({original_url})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+        embed.set_thumbnail(url=thumbnail)
+        asyncio.create_task(channel.send(embed=embed))
 
     else:
         # Leaves when queue is empty
