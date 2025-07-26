@@ -8,13 +8,10 @@ import asyncio
 from collections import deque
 from typing import Literal, Optional
 import datetime
-from keep_alive import keep_alive
 
 # Loads our token as an environment variable
 load_dotenv()
 TOKEN: str = os.getenv("DISCORD_TOKEN")
-
-keep_alive()
 
 SONG_QUEUES = {}
 NOW_PLAYING = {}
@@ -111,10 +108,7 @@ async def play(interaction: discord.Interaction, song_query: str):
     voice_channel = None
     try:
         voice_channel = interaction.user.voice.channel
-    except:
-        pass
-
-    if voice_channel is None:
+    except(AttributeError):
         await interaction.followup.send(embed=discord.Embed(title="You must be in a voice channel.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
         return
     
@@ -136,18 +130,17 @@ async def play(interaction: discord.Interaction, song_query: str):
         url = song_query
     else:
         url = await search_for_song_url(interaction, song_query, message.id)
-        if url == None:
-            return await interaction.followup.edit_message(message_id=message.id, embed=discord.Embed(title=f"No results found.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
+        if url is None:
+            return await interaction.followup.edit_message(message_id=message.id, embed=discord.Embed(title="No results found.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
     
-    await interaction.followup.edit_message(message_id=message.id, embed=discord.Embed(title=f"Queueing song...", color=discord.Color.light_embed(), timestamp=datetime.datetime.now()))
+    await interaction.followup.edit_message(message_id=message.id, embed=discord.Embed(title="Queueing song...", color=discord.Color.light_embed(), timestamp=datetime.datetime.now()))
     
     ydl_play_options = {
         "format": "bestaudio[abr<=96]/bestaudio",
         "noplaylist": True,
         "youtube_include_dash_manifest": False,
         "youtube_include_hls_manifest": False,
-        "skip_download": True,
-        "cookiefile": "cookies.txt"
+        "skip_download": True
     }
     
     selected_track = await search_ytdlp_async(url, ydl_play_options)
@@ -301,8 +294,7 @@ async def search_for_song_url(interaction: discord.Interaction, song_query, mess
         "youtube_include_dash_manifest": False,
         "youtube_include_hls_manifest": False,
         "skip_download": True,
-        "extract_flat": True,
-        "cookiefile": "cookies.txt"
+        "extract_flat": True
     }
 
     query = f"ytsearch{NUM_SEARCH_RESULTS}: " + song_query
@@ -317,7 +309,7 @@ async def search_for_song_url(interaction: discord.Interaction, song_query, mess
     select_embed.add_field(name="0 - Cancel", value="Cancels the request.", inline=False)
     count = 1
     for track in tracks:
-        select_embed.add_field(name=f"{count} - {track.get(f"title", f"Untitled")}", value=track.get("channel"), inline=False)
+        select_embed.add_field(name=f"{count} - {track.get("title", "Untitled")}", value=track.get("channel"), inline=False)
         count += 1
     message = await interaction.followup.edit_message(message_id=message_id, embed=select_embed)
     
@@ -327,7 +319,7 @@ async def search_for_song_url(interaction: discord.Interaction, song_query, mess
     try:
         msg = await bot.wait_for('message', timeout=10.0, check=check)
         msg = msg.content
-    except:
+    except(TimeoutError):
         msg = 1
     track_index = int(msg)
 
