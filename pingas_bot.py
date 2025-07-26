@@ -27,6 +27,10 @@ async def search_ytdlp_async(query, ydl_opts):
 def _extract(query, ydl_opts):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         return ydl.extract_info(query, download=False)
+    
+# Checks if a query is a link
+def is_link(query: str):
+    return query.startswith("https://www.youtube.com/watch") or query.startswith("https://youtu.be/")
 
 
 
@@ -121,46 +125,18 @@ async def play(interaction: discord.Interaction, song_query: str):
     elif voice_channel != voice_client.channel:
         await voice_client.move_to(voice_channel)
 
-    # Logic for searching for yt video
-    ydl_search_options = {
-        "format": "bestaudio[abr<=96]/bestaudio",
-        "noplaylist": True,
-        "youtube_include_dash_manifest": False,
-        "youtube_include_hls_manifest": False,
-        "skip_download": True,
-        "extract_flat": True
-    }
+    message = await interaction.followup.send(embed=discord.Embed(title=f"Searching for... {song_query}", color=discord.Color.light_embed(), timestamp=datetime.datetime.now()))
 
-    query = f"ytsearch{NUM_SEARCH_RESULTS}: " + song_query
-    results = await search_ytdlp_async(query, ydl_search_options)
-    tracks = results.get("entries", [])
+    url = None
 
-    if tracks is None:
-        await interaction.followup.send("No results found.")
-        return
-
+    if is_link(song_query):
+        url = song_query
+    else:
+        url = await search_for_song_url(interaction, song_query, message.id)
+        if url == None:
+            return await interaction.followup.edit_message(message_id=message.id, embed=discord.Embed(title=f"No results found.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
     
-    select_embed = discord.Embed(title="Type in chat the number you want to play", description="Not entering a number will make it play the first match", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
-    select_embed.add_field(name="0 - Cancel", value="Cancels the request.", inline=False)
-    count = 1
-    for track in tracks:
-        select_embed.add_field(name=f"{count} - {track.get(f"title", f"Untitled")}", value=track.get("channel"), inline=False)
-        count += 1
-    message = await interaction.followup.send(embed=select_embed)
-    
-    def check(m):
-        return interaction.user == m.author and m.content.isdigit() and int(m.content) >= 0 and int(m.content) <= NUM_SEARCH_RESULTS
-    msg = None
-    try:
-        msg = await bot.wait_for('message', timeout=10.0, check=check)
-        msg = msg.content
-    except:
-        msg = 1
-    track_index = int(msg)
-
-    if track_index == 0:
-        return_embed = discord.Embed(title="Play request cancelled.", color=discord.Color.yellow(), timestamp=datetime.datetime.now())
-        return await interaction.followup.edit_message(message_id=message.id, embed=return_embed)
+    await interaction.followup.edit_message(message_id=message.id, embed=discord.Embed(title=f"Queueing song...", color=discord.Color.light_embed(), timestamp=datetime.datetime.now()))
     
     ydl_play_options = {
         "format": "bestaudio[abr<=96]/bestaudio",
@@ -169,15 +145,14 @@ async def play(interaction: discord.Interaction, song_query: str):
         "youtube_include_hls_manifest": False,
         "skip_download": True
     }
-    selected_track = tracks[track_index - 1]
-    selected_track = await search_ytdlp_async(selected_track["url"], ydl_play_options)
+    
+    selected_track = await search_ytdlp_async(url, ydl_play_options)
     
     
     audio_url = selected_track["url"]
     title = selected_track.get("title", "Unititled")
     username = interaction.user.nick if interaction.user.nick else interaction.user.display_name 
     duration = selected_track["duration"]
-    original_url = selected_track["original_url"]
     thumbnail = selected_track["thumbnail"]
 
     # Gets the current server id
@@ -187,9 +162,9 @@ async def play(interaction: discord.Interaction, song_query: str):
         SONG_QUEUES[guild_id] = deque()
 
     # Adds song to queue
-    SONG_QUEUES[guild_id].append((audio_url, title, username, duration, original_url, thumbnail))
+    SONG_QUEUES[guild_id].append((audio_url, title, username, duration, url, thumbnail))
 
-    queued_embed = discord.Embed(title="Track enqueued!", description=f"[{title}]({original_url})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+    queued_embed = discord.Embed(title="Track enqueued!", description=f"[{title}]({url})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
     queued_embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
     queued_embed.set_thumbnail(url=thumbnail)
     await interaction.followup.edit_message(message_id=message.id, embed=queued_embed)
@@ -311,6 +286,52 @@ async def queue(interaction: discord.Interaction):
     embed.set_footer(text=f"Estimated time remaining: {total_duration // 60}m {total_duration % 60}s")
     
     await interaction.response.send_message(embed=embed)
+
+
+
+async def search_for_song_url(interaction: discord.Interaction, song_query, message_id):
+    # Logic for searching for yt video
+    ydl_search_options = {
+        "format": "bestaudio[abr<=96]/bestaudio",
+        "noplaylist": True,
+        "youtube_include_dash_manifest": False,
+        "youtube_include_hls_manifest": False,
+        "skip_download": True,
+        "extract_flat": True
+    }
+
+    query = f"ytsearch{NUM_SEARCH_RESULTS}: " + song_query
+    results = await search_ytdlp_async(query, ydl_search_options)
+    tracks = results.get("entries", [])
+
+    if tracks is None or tracks == []:
+        return None
+
+    
+    select_embed = discord.Embed(title="Type in chat the number you want to play", description="Not entering a number will make it play the first match", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+    select_embed.add_field(name="0 - Cancel", value="Cancels the request.", inline=False)
+    count = 1
+    for track in tracks:
+        select_embed.add_field(name=f"{count} - {track.get(f"title", f"Untitled")}", value=track.get("channel"), inline=False)
+        count += 1
+    message = await interaction.followup.edit_message(message_id=message_id, embed=select_embed)
+    
+    def check(m):
+        return interaction.user == m.author and m.content.isdigit() and int(m.content) >= 0 and int(m.content) <= len(tracks)
+    msg = None
+    try:
+        msg = await bot.wait_for('message', timeout=10.0, check=check)
+        msg = msg.content
+    except:
+        msg = 1
+    track_index = int(msg)
+
+    if track_index == 0:
+        return_embed = discord.Embed(title="Play request cancelled.", color=discord.Color.yellow(), timestamp=datetime.datetime.now())
+        return await interaction.followup.edit_message(message_id=message.id, embed=return_embed)
+    
+    selected_track = tracks[track_index - 1]
+    return selected_track["url"]
 
 
 
