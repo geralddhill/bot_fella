@@ -8,10 +8,13 @@ import asyncio
 from collections import deque
 from typing import Literal, Optional
 import datetime
+from keep_alive import keep_alive
 
 # Loads our token as an environment variable
 load_dotenv()
 TOKEN: str = os.getenv("DISCORD_TOKEN")
+
+keep_alive()
 
 SONG_QUEUES = {}
 NOW_PLAYING = {}
@@ -143,7 +146,8 @@ async def play(interaction: discord.Interaction, song_query: str):
         "noplaylist": True,
         "youtube_include_dash_manifest": False,
         "youtube_include_hls_manifest": False,
-        "skip_download": True
+        "skip_download": True,
+        "cookiefile": "cookies.txt"
     }
     
     selected_track = await search_ytdlp_async(url, ydl_play_options)
@@ -297,7 +301,8 @@ async def search_for_song_url(interaction: discord.Interaction, song_query, mess
         "youtube_include_dash_manifest": False,
         "youtube_include_hls_manifest": False,
         "skip_download": True,
-        "extract_flat": True
+        "extract_flat": True,
+        "cookiefile": "cookies.txt"
     }
 
     query = f"ytsearch{NUM_SEARCH_RESULTS}: " + song_query
