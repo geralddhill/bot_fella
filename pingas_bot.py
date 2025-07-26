@@ -15,6 +15,7 @@ TOKEN: str = os.getenv("DISCORD_TOKEN")
 
 SONG_QUEUES = {}
 NOW_PLAYING = {}
+NUM_SEARCH_RESULTS = 10
 
 
 # Handles concurrent execution
@@ -121,18 +122,17 @@ async def play(interaction: discord.Interaction, song_query: str):
         await voice_client.move_to(voice_channel)
 
     # Logic for searching for yt video
-    ydl_options = {
+    ydl_search_options = {
         "format": "bestaudio[abr<=96]/bestaudio",
         "noplaylist": True,
         "youtube_include_dash_manifest": False,
         "youtube_include_hls_manifest": False,
-        "skip_download": True
+        "skip_download": True,
+        "extract_flat": True
     }
 
-    NUM_SEARCH_RESULTS = 5
-
     query = f"ytsearch{NUM_SEARCH_RESULTS}: " + song_query
-    results = await search_ytdlp_async(query, ydl_options)
+    results = await search_ytdlp_async(query, ydl_search_options)
     tracks = results.get("entries", [])
 
     if tracks is None:
@@ -162,7 +162,17 @@ async def play(interaction: discord.Interaction, song_query: str):
         return_embed = discord.Embed(title="Play request cancelled.", color=discord.Color.yellow(), timestamp=datetime.datetime.now())
         return await interaction.followup.edit_message(message_id=message.id, embed=return_embed)
     
+    ydl_play_options = {
+        "format": "bestaudio[abr<=96]/bestaudio",
+        "noplaylist": True,
+        "youtube_include_dash_manifest": False,
+        "youtube_include_hls_manifest": False,
+        "skip_download": True
+    }
     selected_track = tracks[track_index - 1]
+    selected_track = await search_ytdlp_async(selected_track["url"], ydl_play_options)
+    
+    
     audio_url = selected_track["url"]
     title = selected_track.get("title", "Unititled")
     username = interaction.user.nick if interaction.user.nick else interaction.user.display_name 
