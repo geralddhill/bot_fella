@@ -150,14 +150,19 @@ async def play(interaction: discord.Interaction, song_query: str):
     
     def check(m):
         return interaction.user == m.author and m.content.isdigit() and int(m.content) >= 0 and int(m.content) <= NUM_SEARCH_RESULTS
-    msg = await bot.wait_for('message', timeout=60.0, check=check)
-    track_index = int(msg.content)
+    msg = None
+    try:
+        msg = await bot.wait_for('message', timeout=10.0, check=check)
+        msg = msg.content
+    except:
+        msg = 1
+    track_index = int(msg)
 
     if track_index == 0:
         return_embed = discord.Embed(title="Play request cancelled.", color=discord.Color.yellow(), timestamp=datetime.datetime.now())
         return await interaction.followup.edit_message(message_id=message.id, embed=return_embed)
     
-    selected_track = tracks[track_index]
+    selected_track = tracks[track_index - 1]
     audio_url = selected_track["url"]
     title = selected_track.get("title", "Unititled")
     username = interaction.user.nick if interaction.user.nick else interaction.user.display_name 
