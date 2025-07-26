@@ -8,7 +8,7 @@ Recently, most YouTube discord bots have been taken down, so I used my programmi
 
 ## Quick Start
 
-1. Download the latest release.
+1. Download the [latest release](https://github.com/geralddhill/bot_fella/releases/tag/v0.1.0).
 
 2. Install the required libraries by running the following in your command line:
 ```
