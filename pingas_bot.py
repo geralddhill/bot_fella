@@ -126,24 +126,44 @@ async def play(interaction: discord.Interaction, song_query: str):
         "noplaylist": True,
         "youtube_include_dash_manifest": False,
         "youtube_include_hls_manifest": False,
-        "--cookies": "cookies.txt"
+        "skip_download": True
     }
 
-    query = "ytsearch1: " + song_query
+    NUM_SEARCH_RESULTS = 5
+
+    query = f"ytsearch{NUM_SEARCH_RESULTS}: " + song_query
     results = await search_ytdlp_async(query, ydl_options)
     tracks = results.get("entries", [])
 
     if tracks is None:
         await interaction.followup.send("No results found.")
         return
+
     
-    first_track = tracks[0]
-    audio_url = first_track["url"]
-    title = first_track.get("title", "Unititled")
+    select_embed = discord.Embed(title="Type in chat the number you want to play", description="Not entering a number will make it play the first match", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+    select_embed.add_field(name="0 - Cancel", value="Cancels the request.", inline=False)
+    count = 1
+    for track in tracks:
+        select_embed.add_field(name=f"{count} - {track.get(f"title", f"Untitled")}", value=track.get("channel"), inline=False)
+        count += 1
+    message = await interaction.followup.send(embed=select_embed)
+    
+    def check(m):
+        return interaction.user == m.author and m.content.isdigit() and int(m.content) >= 0 and int(m.content) <= NUM_SEARCH_RESULTS
+    msg = await bot.wait_for('message', timeout=60.0, check=check)
+    track_index = int(msg.content)
+
+    if track_index == 0:
+        return_embed = discord.Embed(title="Play request cancelled.", color=discord.Color.yellow(), timestamp=datetime.datetime.now())
+        return await interaction.followup.edit_message(message_id=message.id, embed=return_embed)
+    
+    selected_track = tracks[track_index]
+    audio_url = selected_track["url"]
+    title = selected_track.get("title", "Unititled")
     username = interaction.user.nick if interaction.user.nick else interaction.user.display_name 
-    duration = first_track["duration"]
-    original_url = first_track["original_url"]
-    thumbnail = first_track["thumbnail"]
+    duration = selected_track["duration"]
+    original_url = selected_track["original_url"]
+    thumbnail = selected_track["thumbnail"]
 
     # Gets the current server id
     guild_id = str(interaction.guild_id)
@@ -154,10 +174,10 @@ async def play(interaction: discord.Interaction, song_query: str):
     # Adds song to queue
     SONG_QUEUES[guild_id].append((audio_url, title, username, duration, original_url, thumbnail))
 
-    embed = discord.Embed(title="Track enqueued!", description=f"[{title}]({original_url})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
-    embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
-    embed.set_thumbnail(url=thumbnail)
-    await interaction.followup.send(embed=embed)
+    queued_embed = discord.Embed(title="Track enqueued!", description=f"[{title}]({original_url})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+    queued_embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
+    queued_embed.set_thumbnail(url=thumbnail)
+    await interaction.followup.edit_message(message_id=message.id, embed=queued_embed)
 
     # Checks if a song is currently playing
     if not (voice_client.is_playing() or voice_client.is_paused()):
