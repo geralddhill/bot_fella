@@ -130,6 +130,8 @@ async def play(interaction: discord.Interaction, song_query: str):
         url = song_query
     else:
         url = await search_for_song_url(interaction, song_query, message.id)
+        if url == 0:
+            return
         if url is None:
             return await interaction.followup.edit_message(message_id=message.id, embed=discord.Embed(title="No results found.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
     
@@ -325,7 +327,8 @@ async def search_for_song_url(interaction: discord.Interaction, song_query, mess
 
     if track_index == 0:
         return_embed = discord.Embed(title="Play request cancelled.", color=discord.Color.yellow(), timestamp=datetime.datetime.now())
-        return await interaction.followup.edit_message(message_id=message.id, embed=return_embed)
+        await interaction.followup.edit_message(message_id=message.id, embed=return_embed)
+        return 0
     
     selected_track = tracks[track_index - 1]
     return selected_track["url"]
