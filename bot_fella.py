@@ -8,6 +8,7 @@ import asyncio
 from collections import deque
 from typing import Literal, Optional
 import datetime
+import random
 
 # Loads our token as an environment variable
 load_dotenv()
@@ -367,6 +368,33 @@ async def play_next_song(voice_client, guild_id, channel):
         # Leaves when queue is empty
         await voice_client.disconnect()
         SONG_QUEUES[guild_id] = deque()
+    
+
+
+
+"""
+MSG_LIMIT = 200
+@bot.tree.command(name="gtq", description="Guess who said a random message in a channel.")
+async def gtq(interaction: discord.Interaction):
+    await interaction.response.defer()
+    all_msgs: list = [msg  async for msg in interaction.channel.history(limit=MSG_LIMIT) if msg.author != bot.user]
+    msg = random.choice(all_msgs)
+
+    msg_embed = discord.Embed(title="Guess the Quote!", description=f"\"{msg.content}\"", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+    followup_id = await interaction.followup.send(embed=msg_embed)
+
+    
+    correct_user = msg.author
+    def check(m):
+        quote = m.content.lower()
+        return quote.find(correct_user.name.lower()) >= 0 or quote.find(correct_user.display_name.lower()) >= 0
+    msg = None
+    try:
+        msg = await bot.wait_for('message', timeout=10.0, check=check)
+        print (msg)
+    except(TimeoutError):
+        msg = 1
+"""
 
 
 bot.run(TOKEN)
