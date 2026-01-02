@@ -3,3 +3,4 @@
 .idea
 .env
 dc_env/
+.dc_env/
