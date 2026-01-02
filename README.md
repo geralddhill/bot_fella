@@ -18,7 +18,7 @@ This bot can now be installed using Docker! You can view the image on Docker Hub
 
     ```
     services:
-      pingas-bot:
+      bot-fella:
         image: geralddhill/bot_fella
         environment:
           DISCORD_TOKEN: [paste token here]
