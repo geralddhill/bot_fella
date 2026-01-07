@@ -17,6 +17,17 @@ class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    class Song():
+        def __init__(self, audio_url, title, user_id, username, duration, url, thumbnail):
+            self.audio_url = audio_url
+            self.title = title
+            self.user_id = user_id
+            self.username = username
+            self.duration = duration
+            self. url = url
+            self. thumbnail = thumbnail
+            
+
     @app_commands.command(name="play", description="Play a song or add it to the queue")
     @app_commands.describe(song_query="Search query")
     async def play(self, interaction: discord.Interaction, song_query: str):
@@ -68,6 +79,7 @@ class Music(commands.Cog):
         
         audio_url = selected_track["url"]
         title = selected_track.get("title", "Unititled")
+        user_id = interaction.user.id
         username = interaction.user.nick if interaction.user.nick else interaction.user.display_name 
         duration = selected_track["duration"]
         thumbnail = selected_track["thumbnail"]
@@ -79,7 +91,7 @@ class Music(commands.Cog):
             Music.SONG_QUEUES[guild_id] = deque()
 
         # Adds song to queue
-        Music.SONG_QUEUES[guild_id].append((audio_url, title, username, duration, url, thumbnail))
+        Music.SONG_QUEUES[guild_id].append(Music.Song(audio_url, title, user_id, username, duration, url, thumbnail))
 
         queued_embed = discord.Embed(title="Track enqueued!", description=f"[{title}]({url})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
         queued_embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
@@ -100,9 +112,9 @@ class Music(commands.Cog):
         # Checks to see if something playing and stops it if so, which triggers our function to play the next song
         if voice_client and (voice_client.is_playing() or voice_client.is_paused()):
             voice_client.stop()
-            embed = embed=discord.Embed(title="Skipped the current song!", description=f"[{song[1]}]({song[4]})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+            embed = embed=discord.Embed(title="Skipped the current song!", description=f"[{song.title}]({song.url})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
             embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
-            embed.set_thumbnail(url=song[5])
+            embed.set_thumbnail(url=song.thumbnail)
             await interaction.response.send_message(embed=embed)
         else:
             await interaction.response.send_message(embed=discord.Embed(title="Not playing anything to skip.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
@@ -190,18 +202,58 @@ class Music(commands.Cog):
         total_duration = 0
 
         if voice_client.is_playing() or voice_client.is_paused():
-            embed.description = f"Now Playing: {Music.NOW_PLAYING[guild_id][1]}"
+            embed.description = f"Now Playing: {Music.NOW_PLAYING[guild_id].title}"
 
         count = 1
         for song in Music.SONG_QUEUES[guild_id]:
-            embed.add_field(name=f"{count} - {song[1]}", value=f"requested by {song[2]}", inline=False)
-            total_duration += song[3]
+            embed.add_field(name=f"{count} - {song.title}", value=f"requested by {song.username}", inline=False)
+            total_duration += song.duration
 
             count += 1
 
         embed.set_footer(text=f"Estimated time remaining: {total_duration // 60}m {total_duration % 60}s")
         
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="dequeue", description="Remove a song from the queue")
+    @app_commands.describe(song_num="Number of song to remove")
+    async def dequeue(self, interaction: discord.Interaction, song_num: str):
+        # Validate song_num
+        if not song_num.isnumeric() or int(song_num) < 1:
+            await interaction.response.send_message(embed=discord.Embed(title="Please enter a positive integer.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
+            return
+
+        guild_id = str(interaction.guild_id)
+        voice_client = interaction.guild.voice_client
+        queue = Music.SONG_QUEUES.get(guild_id, deque())
+        index = int(song_num)
+
+        if index > len(queue):
+            await interaction.response.send_message(embed=discord.Embed(title="Invalid song number.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
+            return
+
+        if queue == deque() and not voice_client or not voice_client.is_connected():
+            await interaction.response.send_message(embed=discord.Embed(title="The queue is currently empty.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
+            return
+
+        # Converts song number that end user sees into list index in python
+        index -= 1
+        song = Music.SONG_QUEUES[guild_id][index]
+
+        if song.user_id != interaction.user.id:
+            await interaction.response.send_message(embed=discord.Embed(title="You can only dequeue songs you have queued.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
+            return
+
+        embed = discord.Embed(title="Track dequeued!", description=f"[{song.title}]({song.url})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+        embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
+        embed.set_thumbnail(url=song.thumbnail)
+
+        del Music.SONG_QUEUES[guild_id][index]
+
+        await interaction.response.send_message(embed=embed)
+        
+
+        
 
 
 
@@ -256,10 +308,10 @@ class Music(commands.Cog):
         if Music.SONG_QUEUES[guild_id]:
             # Gets next song for the current server's queue
             Music.NOW_PLAYING[guild_id] = Music.SONG_QUEUES[guild_id].popleft()
-            audio_url = Music.NOW_PLAYING[guild_id][0]
-            title = Music.NOW_PLAYING[guild_id][1]
-            original_url = Music.NOW_PLAYING[guild_id][4]
-            thumbnail = Music.NOW_PLAYING[guild_id][5]
+            audio_url = Music.NOW_PLAYING[guild_id].audio_url
+            title = Music.NOW_PLAYING[guild_id].title
+            original_url = Music.NOW_PLAYING[guild_id].url
+            thumbnail = Music.NOW_PLAYING[guild_id].thumbnail
 
             # Logic for playing the song
             ffmpeg_options = {
