@@ -215,6 +215,46 @@ class Music(commands.Cog):
         
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="dequeue", description="Remove a song from the queue")
+    @app_commands.describe(song_num="Number of song to remove")
+    async def dequeue(self, interaction: discord.Interaction, song_num: str):
+        # Validate song_num
+        if not song_num.isnumeric() or int(song_num) < 1:
+            await interaction.response.send_message(embed=discord.Embed(title="Please enter a positive integer.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
+            return
+
+        guild_id = str(interaction.guild_id)
+        voice_client = interaction.guild.voice_client
+        queue = Music.SONG_QUEUES.get(guild_id, deque())
+        index = int(song_num)
+
+        if index > len(queue):
+            await interaction.response.send_message(embed=discord.Embed(title="Invalid song number.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
+            return
+
+        if queue == deque() and not voice_client or not voice_client.is_connected():
+            await interaction.response.send_message(embed=discord.Embed(title="The queue is currently empty.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
+            return
+
+        # Converts song number that end user sees into list index in python
+        index -= 1
+        song = Music.SONG_QUEUES[guild_id][index]
+
+        if song.user_id != interaction.user.id:
+            await interaction.response.send_message(embed=discord.Embed(title="You can only dequeue songs you have queued.", color=discord.Color.red(), timestamp=datetime.datetime.now()))
+            return
+
+        embed = discord.Embed(title="Track dequeued!", description=f"[{song.title}]({song.url})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
+        embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
+        embed.set_thumbnail(url=song.thumbnail)
+
+        del Music.SONG_QUEUES[guild_id][index]
+
+        await interaction.response.send_message(embed=embed)
+        
+
+        
+
 
 
     async def search_for_song_url(self, interaction: discord.Interaction, song_query, message_id):
