@@ -33,13 +33,15 @@ This bot can now be installed using Docker! You can view the image on Docker Hub
 
 ## Usage
 
-**/play \[song-query\]**: Searches for a video on youtube and displays top 10 results back to the user. The user can pick which one to queue up and play.
+**/play \[song_query\]**: Searches for a video on youtube and displays top 10 results back to the user. The user can pick which one to queue up and play.
 
 **/queue**: Displays the current queue to the user.
 
 **/pause** & **/resume**: Pauses and resumes playback.
 
 **/stop**: Immediately ceases playback and disconnects from voice channel.
+
+**/dequeue \[song_num\]**: Dequeues a selected song from the queue. Only the user who queues the song can dequeue it.
 
 **/greet**: Sends a greeting to the user.
 
