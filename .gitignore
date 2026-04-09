@@ -4,3 +4,4 @@
 .env
 dc_env/
 .dc_env/
+.venv
