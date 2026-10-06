@@ -9,5 +9,6 @@ COPY . .
 
 RUN apt-get update
 RUN apt-get install -y ffmpeg
+RUN curl -fsSL https://deno.land/install.sh | sh
 
 CMD [ "python", "./main.py" ]
