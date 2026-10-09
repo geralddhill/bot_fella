@@ -1,14 +1,8 @@
 import os
 import discord
 from discord.ext import commands
-from discord import app_commands
 from dotenv import load_dotenv
-import yt_dlp
-import asyncio
-from collections import deque
 from typing import Literal, Optional
-import datetime
-import random
 
 # Loads our token as an environment variable
 load_dotenv()
@@ -17,7 +11,7 @@ TOKEN: str = os.getenv("DISCORD_TOKEN")
 
 class BotFella(commands.Bot):
     async def setup_hook(self):
-        await self.load_extension("cogs.music")
+        await self.load_extension("src.cogs.music")
 
 
 

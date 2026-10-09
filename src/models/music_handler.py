@@ -1,0 +1,105 @@
+from src.models.song import Song, SongSearchResult
+from collections import deque
+import asyncio
+import yt_dlp
+import discord
+
+class MusicHandler:
+
+    NUM_SEARCH_RESULTS = 10
+
+    def __init__(self):
+        self._song_queues = {}
+        self._now_playing = {}
+
+    # Queue Functionality
+    def queue_song(self, guild_id: int, song: Song) -> None:
+        # Creates a new queue for the server is one does not already exist
+        if self._song_queues.get(guild_id) is None:
+            self._song_queues[guild_id] = deque()
+
+        self._song_queues[guild_id].append(song)
+
+    def get_queue(self, guild_id: int) -> deque[Song]:
+        return self._song_queues.get(guild_id, deque())
+
+    def dequeue_song(self, guild_id: int, index: int) -> None:
+        del self._song_queues[guild_id][index]
+
+    def clear_queue(self, guild_id: int) -> None:
+        if guild_id in self._song_queues.keys():
+            self._song_queues[guild_id].clear()
+
+    def queue_is_empty(self, guild_id: int) -> bool:
+        return self._song_queues.get(guild_id, deque()) == deque()
+
+    def get_now_playing(self, guild_id: int) -> Song | None:
+        return self._now_playing.get(guild_id, None)
+
+    def advance_queue(self, guild_id:int) -> None:
+        if guild_id not in self._song_queues.keys():
+            raise ValueError("Guild does not have a queue.")
+
+        self._now_playing[guild_id] = self._song_queues[guild_id].popleft()
+
+
+    # Download Functionality
+
+    @staticmethod
+    async def search(query: str) -> list[SongSearchResult]:
+        # Logic for searching for yt video
+        ydl_search_options = {
+            "format": "bestaudio[abr<=96]/bestaudio",
+            "noplaylist": True,
+            "youtube_include_dash_manifest": False,
+            "youtube_include_hls_manifest": False,
+            "skip_download": True,
+            "extract_flat": True
+        }
+
+        ydl_query = f"ytsearch{MusicHandler.NUM_SEARCH_RESULTS}: " + query
+        results = await MusicHandler.search_ytdlp_async(ydl_query, ydl_search_options)
+        tracks = results.get("entries", [])
+
+        if tracks is None:
+            return []
+
+        return list(map(lambda song: SongSearchResult(song.get("title", "Untitled"), song.get("channel"), song["url"]), tracks))
+
+    @staticmethod
+    async def get_song(url: str, user: discord.User) -> Song:
+        ydl_play_options = {
+            "format": "bestaudio[abr<=96]/bestaudio",
+            "noplaylist": True,
+            "youtube_include_dash_manifest": False,
+            "youtube_include_hls_manifest": False,
+            "skip_download": True
+        }
+
+        selected_track = await MusicHandler.search_ytdlp_async(url, ydl_play_options)
+
+        audio_url = selected_track["url"]
+        title = selected_track.get("title", "Unititled")
+        user_id = user.id
+        username = user.nick if user.nick else user.display_name
+        duration = selected_track["duration"]
+        thumbnail = selected_track["thumbnail"]
+
+        return Song(audio_url, title, user_id, username, duration, url, thumbnail)
+
+    @staticmethod
+    async def search_ytdlp_async(query, ydl_opts):
+        """Handles concurrent execution"""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, lambda: MusicHandler._extract(query, ydl_opts))
+
+    @staticmethod
+    def _extract(query, ydl_opts):
+        """Performs search"""
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            return ydl.extract_info(query, download=False)
+
+    @staticmethod
+    def is_link(query: str):
+        """Checks if a query is a link"""
+        return query.startswith("https://www.youtube.com/watch") or query.startswith("https://youtu.be/")
