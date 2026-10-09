@@ -58,22 +58,17 @@ class Music(commands.Cog):
         
         await interaction.followup.edit_message(message_id=message.id, embed=default_embed("Queueing song..."))
         
-        selected_track = await self.music_handler.get_song_from_url(url, interaction.user)
+        selected_tracks = await self.music_handler.get_songs_from_url(url, interaction.user)
 
         # Gets the current server id
         guild_id = interaction.guild_id
 
         # Adds song to queue
-        self.music_handler.queue_song(guild_id, selected_track)
+        for track in selected_tracks:
+            self.music_handler.queue_song(guild_id, track)
 
-        await interaction.followup.edit_message(message_id=message.id, embed=detailed_embed(
-            message="Track enqueued!",
-            title=selected_track.title,
-            url=url,
-            name=interaction.user.name,
-            avatar_url=interaction.user.display_avatar.url,
-            thumbnail_url=selected_track.thumbnail)
-        )
+        # TODO Fix this embed to be more detailed
+        await interaction.followup.edit_message(message_id=message.id, embed=default_embed("Track queued!"))
 
         # Checks if a song is currently playing
         if not (voice_client.is_playing() or voice_client.is_paused()):

@@ -5,7 +5,7 @@ import asyncio
 import yt_dlp
 import discord
 
-from src.models.youtube_link_handler import YoutubeURLHandler
+from src.models.youtube_url_handler import YoutubeURLHandler
 
 
 class MusicHandler:
@@ -74,7 +74,7 @@ class MusicHandler:
 
         return list(map(lambda song: SongSearchResult(song.get("title", "Untitled"), song.get("channel"), song["url"]), tracks))
 
-    async def get_song_from_url(self, url: str, user: discord.User) -> Song:
+    async def get_songs_from_url(self, url: str, user: discord.User) -> list[Song]:
         url_handler = next((h for h in self._link_handlers if h.can_handle(url)), None)
         if url_handler is None:
             raise ValueError("Invalid URL.")
@@ -89,16 +89,26 @@ class MusicHandler:
             "skip_download": True
         }
 
-        selected_track = await MusicHandler.search_ytdlp_async(yt_url, ydl_play_options)
+        ytdlp_response = await MusicHandler.search_ytdlp_async(yt_url, ydl_play_options)
 
-        audio_url = selected_track["url"]
-        title = selected_track.get("title", "Untitled")
-        user_id = user.id
-        username = user.nick if user.nick else user.display_name
-        duration = selected_track["duration"]
-        thumbnail = selected_track["thumbnail"]
+        entries = None
+        if ytdlp_response.get("entries") is not None:
+            entries = ytdlp_response["entries"]
+        else:
+            entries = ytdlp_response
 
-        return Song(audio_url, title, user_id, username, duration, yt_url, thumbnail)
+        result = []
+
+        for song in entries:
+            audio_url = song["url"]
+            title = song.get("title", "Untitled")
+            user_id = user.id
+            username = user.nick if user.nick else user.display_name
+            duration = song["duration"]
+            thumbnail = song["thumbnail"]
+            result.append(Song(audio_url, title, user_id, username, duration, yt_url, thumbnail))
+
+        return result
 
     def is_valid_url(self, query: str) -> bool:
         """Checks if a query is a link"""
