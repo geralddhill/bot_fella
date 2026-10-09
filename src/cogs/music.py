@@ -27,7 +27,7 @@ class Music(commands.Cog):
             voice_channel = interaction.user.voice.channel
         except AttributeError:
             await interaction.followup.send(embed=error_embed("You must be in a voice channel."))
-            return None
+            return
         
         # A voice client is an entity that can interact with voice channels in Discord
         # If a bot has a voice client, that means it is connected to a voice channel
@@ -39,24 +39,26 @@ class Music(commands.Cog):
         elif voice_channel != voice_client.channel:
             await voice_client.move_to(voice_channel)
 
-        message = await interaction.followup.send(embed=default_embed(f"Searching for... {song_query}"))
+        message = await interaction.followup.send(embed=default_embed(f"Searching..."))
 
         url = None
 
-        if self.music_handler.is_link(song_query):
+        if self.music_handler.is_valid_url(song_query):
             url = song_query
         else:
             url = await self.search_for_song_url(interaction, song_query, message.id)
             if url == "":
                 return_embed = discord.Embed(title="Play request cancelled.", color=discord.Color.yellow(),
                                              timestamp=datetime.datetime.now())
-                return await interaction.followup.edit_message(message_id=message.id, embed=return_embed)
-            if url is None:
-                return await interaction.followup.edit_message(message_id=message.id, embed=error_embed("No results found."))
+                await interaction.followup.edit_message(message_id=message.id, embed=return_embed)
+                return
+        if url is None:
+            await interaction.followup.edit_message(message_id=message.id, embed=error_embed("No results found."))
+            return
         
         await interaction.followup.edit_message(message_id=message.id, embed=default_embed("Queueing song..."))
         
-        selected_track = await self.music_handler.get_song(url, interaction.user)
+        selected_track = await self.music_handler.get_song_from_url(url, interaction.user)
 
         # Gets the current server id
         guild_id = interaction.guild_id

@@ -1,16 +1,24 @@
+from src.models.url_handler import URLHandler
 from src.models.song import Song, SongSearchResult
 from collections import deque
 import asyncio
 import yt_dlp
 import discord
 
+from src.models.youtube_link_handler import YoutubeURLHandler
+
+
 class MusicHandler:
 
     NUM_SEARCH_RESULTS = 10
 
     def __init__(self):
-        self._song_queues = {}
-        self._now_playing = {}
+        self._song_queues: dict[int, deque[Song]] = {}
+        self._now_playing: dict[int, Song] = {}
+        self._link_handlers: list[URLHandler] = [YoutubeURLHandler()]
+
+    def add_link_handler(self, link_handler: URLHandler):
+        self._link_handlers.append(link_handler)
 
     # Queue Functionality
     def queue_song(self, guild_id: int, song: Song) -> None:
@@ -66,8 +74,13 @@ class MusicHandler:
 
         return list(map(lambda song: SongSearchResult(song.get("title", "Untitled"), song.get("channel"), song["url"]), tracks))
 
-    @staticmethod
-    async def get_song(url: str, user: discord.User) -> Song:
+    async def get_song_from_url(self, url: str, user: discord.User) -> Song:
+        url_handler = next((h for h in self._link_handlers if h.can_handle(url)), None)
+        if url_handler is None:
+            raise ValueError("Invalid URL.")
+
+        yt_url = url_handler.to_youtube_url(url)
+
         ydl_play_options = {
             "format": "bestaudio[abr<=96]/bestaudio",
             "noplaylist": True,
@@ -76,16 +89,20 @@ class MusicHandler:
             "skip_download": True
         }
 
-        selected_track = await MusicHandler.search_ytdlp_async(url, ydl_play_options)
+        selected_track = await MusicHandler.search_ytdlp_async(yt_url, ydl_play_options)
 
         audio_url = selected_track["url"]
-        title = selected_track.get("title", "Unititled")
+        title = selected_track.get("title", "Untitled")
         user_id = user.id
         username = user.nick if user.nick else user.display_name
         duration = selected_track["duration"]
         thumbnail = selected_track["thumbnail"]
 
-        return Song(audio_url, title, user_id, username, duration, url, thumbnail)
+        return Song(audio_url, title, user_id, username, duration, yt_url, thumbnail)
+
+    def is_valid_url(self, query: str) -> bool:
+        """Checks if a query is a link"""
+        return any((h for h in self._link_handlers if h.can_handle(query)))
 
     @staticmethod
     async def search_ytdlp_async(query, ydl_opts):
@@ -98,8 +115,3 @@ class MusicHandler:
         """Performs search"""
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             return ydl.extract_info(query, download=False)
-
-    @staticmethod
-    def is_link(query: str):
-        """Checks if a query is a link"""
-        return query.startswith("https://www.youtube.com/watch") or query.startswith("https://youtu.be/")
