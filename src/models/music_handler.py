@@ -74,7 +74,7 @@ class MusicHandler:
 
         return list(map(lambda song: SongSearchResult(song.get("title", "Untitled"), song.get("channel"), song["url"]), tracks))
 
-    async def get_songs_from_url(self, url: str, user: discord.User) -> list[Song]:
+    async def get_songs_from_url(self, url: str, user: discord.User) -> tuple[list[Song], str, str]:
         url_handler = next((h for h in self._link_handlers if h.can_handle(url)), None)
         if url_handler is None:
             raise ValueError("Invalid URL.")
@@ -90,25 +90,27 @@ class MusicHandler:
         }
 
         ytdlp_response = await MusicHandler.search_ytdlp_async(yt_url, ydl_play_options)
+        user_id = user.id
+        username = user.nick if user.nick else user.display_name
 
-        entries = None
-        if ytdlp_response.get("entries") is not None:
-            entries = ytdlp_response["entries"]
-        else:
-            entries = ytdlp_response
+        if ytdlp_response.get("entries") is None:
+            audio_url = ytdlp_response["url"]
+            title = ytdlp_response.get("title", "Untitled")
+            duration = ytdlp_response["duration"]
+            thumbnail = ytdlp_response["thumbnail"]
+            return [Song(audio_url, title, user_id, username, duration, yt_url, thumbnail)], title, thumbnail
 
         result = []
 
-        for song in entries:
+        for song in ytdlp_response["entries"]:
             audio_url = song["url"]
             title = song.get("title", "Untitled")
-            user_id = user.id
-            username = user.nick if user.nick else user.display_name
+
             duration = song["duration"]
             thumbnail = song["thumbnail"]
             result.append(Song(audio_url, title, user_id, username, duration, yt_url, thumbnail))
 
-        return result
+        return result, ytdlp_response.get("title", "Untitled"), ytdlp_response["thumbnails"][0]["url"]
 
     def is_valid_url(self, query: str) -> bool:
         """Checks if a query is a link"""

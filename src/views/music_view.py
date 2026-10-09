@@ -17,15 +17,19 @@ def error_embed(message: str) -> discord.Embed:
         timestamp=datetime.datetime.now()
     )
 
-def detailed_embed(message: str, title: str, url: str, name: str, avatar_url: str, thumbnail_url: str) -> discord.Embed:
+def detailed_embed(message: str, name: str = None, avatar_url: str = None, title: str = None, url: str = None, thumbnail_url: str = None) -> discord.Embed:
     embed = discord.Embed(
         title=message,
-        description=f"[{title}]({url})",
+        description=f"[{title}]({url})" if title and url else "",
         color=discord.Color.light_embed(),
         timestamp=datetime.datetime.now()
     )
-    embed.set_author(name=name, icon_url=avatar_url)
-    embed.set_thumbnail(url=thumbnail_url)
+
+    if name and avatar_url:
+        embed.set_author(name=name, icon_url=avatar_url)
+
+    if thumbnail_url:
+        embed.set_thumbnail(url=thumbnail_url)
 
     return embed
 

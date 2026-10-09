@@ -58,7 +58,7 @@ class Music(commands.Cog):
         
         await interaction.followup.edit_message(message_id=message.id, embed=default_embed("Queueing song..."))
         
-        selected_tracks = await self.music_handler.get_songs_from_url(url, interaction.user)
+        selected_tracks, title, thumbnail_url = await self.music_handler.get_songs_from_url(url, interaction.user)
 
         # Gets the current server id
         guild_id = interaction.guild_id
@@ -67,8 +67,14 @@ class Music(commands.Cog):
         for track in selected_tracks:
             self.music_handler.queue_song(guild_id, track)
 
-        # TODO Fix this embed to be more detailed
-        await interaction.followup.edit_message(message_id=message.id, embed=default_embed("Track queued!"))
+        await interaction.followup.edit_message(message_id=message.id, embed=detailed_embed(
+            message=f"{"Playlist" if len(selected_tracks) > 1 else "Track"} Queued!",
+            title=title,
+            url=url,
+            name=interaction.user.name,
+            avatar_url=interaction.user.display_avatar.url,
+            thumbnail_url=thumbnail_url,
+        ))
 
         # Checks if a song is currently playing
         if not (voice_client.is_playing() or voice_client.is_paused()):
@@ -105,17 +111,21 @@ class Music(commands.Cog):
 
         # Checks if the bot is in a voice channel
         if voice_client is None:
-            return await interaction.response.send_message(embed=error_embed("I am not connected to any voice channel."))
+            await interaction.response.send_message(embed=error_embed("I am not connected to any voice channel."))
+            return
         
         # Checks if something is actually playing
         if not voice_client.is_playing():
-            return await interaction.response.send_message(embed=error_embed("Nothing is currently playing."))
+            await interaction.response.send_message(embed=error_embed("Nothing is currently playing."))
+            return
         
         # Pauses the track
         voice_client.pause()
-        embed = discord.Embed(title="Playback paused!", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
-        embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=detailed_embed(
+            message="Playback paused!",
+            name=interaction.user.name,
+            url=interaction.user.display_avatar.url,
+        ))
 
 
 
@@ -125,17 +135,21 @@ class Music(commands.Cog):
 
         # Checks if the bot is in a voice channel
         if voice_client is None:
-            return await interaction.response.send_message(embed=error_embed("I am not connected to any voice channel."))
+            await interaction.response.send_message(embed=error_embed("I am not connected to any voice channel."))
+            return
         
         # Checks if something is actually playing
         if not voice_client.is_paused():
-            return await interaction.response.send_message(embed=error_embed("Nothing is currently playing."))
+            await interaction.response.send_message(embed=error_embed("Nothing is currently playing."))
+            return
         
         # Resumes the track
         voice_client.resume()
-        embed = discord.Embed(title="Playback resumed!", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
-        embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=detailed_embed(
+            message="Playback resumed!",
+            name=interaction.user.name,
+            url=interaction.user.display_avatar.url,
+        ))
 
 
 
@@ -146,7 +160,8 @@ class Music(commands.Cog):
         
         # Checks if the bot is in a voice channel
         if not voice_client or not voice_client.is_connected():
-            return await interaction.followup.send(embed=error_embed("I am not connected to any voice channel."))
+            await interaction.followup.send(embed=error_embed("I am not connected to any voice channel."))
+            return
         
         # Clear the server's queue
         guild_id = interaction.guild_id
@@ -156,9 +171,11 @@ class Music(commands.Cog):
         if voice_client.is_playing() or voice_client.is_paused():
             voice_client.stop()
 
-        embed = discord.Embed(title="Stopped playback and disconnected!", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
-        embed.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar.url)
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=detailed_embed(
+            message="Stopped playback and disconnected!",
+            name=interaction.user.name,
+            url=interaction.user.display_avatar.url,
+        ))
 
         # Disconnects from channel
         await voice_client.disconnect()
@@ -177,8 +194,8 @@ class Music(commands.Cog):
 
         queue = self.music_handler.get_queue(guild_id)
         now_playing = self.music_handler.get_now_playing(guild_id)
+
         embed = queue_embed(queue=queue, now_playing=now_playing) if (voice_client.is_playing() or voice_client.is_paused()) else queue_embed(queue=queue)
-        
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="dequeue", description="Remove a song from the queue")
@@ -284,9 +301,12 @@ class Music(commands.Cog):
 
         voice_client.play(source, after=after_play)
 
-        embed = embed=discord.Embed(title="Now playing!", description=f"[{title}]({original_url})", color=discord.Color.light_embed(), timestamp=datetime.datetime.now())
-        embed.set_thumbnail(url=thumbnail)
-        asyncio.create_task(channel.send(embed=embed))
+        asyncio.create_task(channel.send(embed=detailed_embed(
+            message="Now playing!",
+            title=title,
+            url=original_url,
+            thumbnail_url=thumbnail,
+        )))
 
 
 
